@@ -35,7 +35,7 @@ func (g *GoddTestSuite) TestSimple(c *C) {
 	err := ioutil.WriteFile("src", canary, 0644)
 	c.Assert(err, IsNil)
 
-	err = dd("src", "dst")
+	err = dd("src", "dst", 0)
 	c.Assert(err, IsNil)
 
 	read, err := ioutil.ReadFile("dst")
@@ -61,4 +61,28 @@ func (g *GoddTestSuite) TestParseError(c *C) {
 	opts, err := parseArgs([]string{"if=src", "invalid=command"})
 	c.Assert(err, ErrorMatches, `unknown argument "invalid=command"`)
 	c.Assert(opts, IsNil)
+}
+
+func (g *GoddTestSuite) TestParseBs(c *C) {
+	opts, err := parseArgs([]string{"bs=5"})
+	c.Assert(err, IsNil)
+	c.Assert(opts, DeepEquals, &ddOpts{bs: 5})
+}
+
+func (g *GoddTestSuite) TestParseBsWithString(c *C) {
+	opts, err := parseArgs([]string{"bs=5M"})
+	c.Assert(err, IsNil)
+	c.Assert(opts, DeepEquals, &ddOpts{bs: 5 * 1024 * 1024})
+}
+
+func (g *GoddTestSuite) TestParseDD(c *C) {
+	n, err := ddAtoi("5M")
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5*1024*1024)
+}
+
+func (g *GoddTestSuite) TestParseDDTwo(c *C) {
+	n, err := ddAtoi("5kB")
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5*1000)
 }

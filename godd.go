@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/cheggaaa/pb"
@@ -39,6 +40,52 @@ func (f *FixedBuffer) Write(data []byte) (int, error) {
 type ddOpts struct {
 	src string
 	dst string
+	bs  int
+}
+
+func ddAtoi(s string) (int, error) {
+	if len(s) < 2 {
+		return strconv.Atoi(s)
+	}
+
+	// dd supports suffixes via two chars like "kB"
+	fac := 1
+	switch s[len(s)-2:] {
+	case "kB":
+		fac = 1000
+	case "MB":
+		fac = 1000 * 1000
+	case "GB":
+		fac = 1000 * 1000 * 1000
+	case "TB":
+		fac = 1000 * 1000 * 1000 * 1000
+	}
+	// adjust string if its from xB group
+	if fac % 10 == 0 {
+		s = s[:len(s)-2]
+	}
+
+	// check for single char digests
+	switch s[len(s)-1] {
+	case 'b':
+		fac = 512
+	case 'K':
+		fac = 1024
+	case 'M':
+		fac = 1024 * 1024
+	case 'G':
+		fac = 1024 * 1024 * 1024
+	case 'T':
+		fac = 1024 * 1024 * 1024 * 1024
+	}
+	// ajust string if its from the X group
+	if fac % 512 == 0  {
+		s = s[:len(s)-1]
+	}
+
+	n, err := strconv.Atoi(s)
+	n *= fac
+	return n, err
 }
 
 func parseArgs(args []string) (*ddOpts, error) {
@@ -52,7 +99,9 @@ func parseArgs(args []string) (*ddOpts, error) {
 	}
 
 	// ok, real work
-	opts := ddOpts{}
+	opts := ddOpts{
+		bs: defaultBufSize,
+	}
 	for _, arg := range args {
 		l := strings.SplitN(arg, "=", 2)
 		switch l[0] {
@@ -60,6 +109,12 @@ func parseArgs(args []string) (*ddOpts, error) {
 			opts.src = l[1]
 		case "of":
 			opts.dst = l[1]
+		case "bs":
+			bs, err := ddAtoi(l[1])
+			if err != nil {
+				return nil, err
+			}
+			opts.bs = bs
 		default:
 			return nil, fmt.Errorf("unknown argument %q", arg)
 		}
@@ -68,7 +123,11 @@ func parseArgs(args []string) (*ddOpts, error) {
 	return &opts, nil
 }
 
-func dd(srcPath, dstPath string) error {
+func dd(srcPath, dstPath string, bs int) error {
+	if bs == 0 {
+		bs = defaultBufSize
+	}
+
 	src, err := os.Open(srcPath)
 	if err != nil {
 		return err
@@ -85,7 +144,7 @@ func dd(srcPath, dstPath string) error {
 	}()
 
 	// huge default bufsize
-	w := NewFixedBuffer(dst, defaultBufSize)
+	w := NewFixedBuffer(dst, bs)
 
 	stat, err := src.Stat()
 	if err != nil {
@@ -105,7 +164,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := dd(opts.src, opts.dst); err != nil {
+	if err := dd(opts.src, opts.dst, opts.bs); err != nil {
 		fmt.Println(fmt.Errorf("failed to dd %v", err))
 		os.Exit(1)
 	}
