@@ -39,3 +39,23 @@ func (g *GoddTestSuite) TestSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(read, DeepEquals, canary)
 }
+
+func (g *GoddTestSuite) TestParseTrivial(c *C) {
+	opts, err := parseArgs([]string{"src", "dst"})
+	c.Assert(err, IsNil)
+	c.Check(opts.src, Equals, "src")
+	c.Check(opts.dst, Equals, "dst")
+}
+
+func (g *GoddTestSuite) TestParseIfOf(c *C) {
+	opts, err := parseArgs([]string{"if=src", "of=dst"})
+	c.Assert(err, IsNil)
+	c.Check(opts.src, Equals, "src")
+	c.Check(opts.dst, Equals, "dst")
+}
+
+func (g *GoddTestSuite) TestParseError(c *C) {
+	opts, err := parseArgs([]string{"if=src", "invalid=command"})
+	c.Assert(err, ErrorMatches, `unknown argument "invalid=command"`)
+	c.Assert(opts, IsNil)
+}
