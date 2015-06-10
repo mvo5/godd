@@ -1,6 +1,6 @@
 # godd - a dd like tool with progress bar
 
-A small dd like tool with progressbar. Usefl when writing disk images to e.g. sd-cards.
+A small dd like tool with progressbar. Useful when writing disk images to e.g. sd-cards.
 
 ## Usage
 
