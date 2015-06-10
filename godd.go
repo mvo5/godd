@@ -9,6 +9,30 @@ import (
 	"github.com/cheggaaa/pb"
 )
 
+// go does not offer support to customize the buffer size for
+// io.Copy directly, so we need to implement a custom type with:
+// ReadFrom and Write
+type FixedBuffer struct {
+	w   io.Writer
+	buf []byte
+}
+
+func NewFixedBuffer(w io.Writer, size int64) *FixedBuffer {
+	return &FixedBuffer{
+		w: w,
+		buf:  make([]byte, size),
+	}
+}
+
+func (f *FixedBuffer) ReadFrom(r io.Reader) (int, error) {
+	return r.Read(f.buf)
+}
+
+func (f *FixedBuffer) Write(data []byte) (int, error) {
+	return f.w.Write(data)
+}
+
+// the dd releated stuff
 type ddOpts struct {
 	src string
 	dst string
@@ -57,13 +81,16 @@ func dd(srcPath, dstPath string) error {
 		dst.Close()
 	}()
 
+	// huge default bufsize
+	w := NewFixedBuffer(dst, 4*1024*1024)
+
 	stat, err := src.Stat()
 	if err != nil {
 		return err
 	}
 	pbar := pb.New64(stat.Size()).SetUnits(pb.U_BYTES)
 	pbar.Start()
-	mw := io.MultiWriter(dst, pbar)
+	mw := io.MultiWriter(w, pbar)
 	_, err = io.Copy(mw, src)
 	return err
 }
