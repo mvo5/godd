@@ -9,6 +9,9 @@ import (
 	"github.com/cheggaaa/pb"
 )
 
+// var to allow tests to change it
+var defaultBufSize = 4 * 1024 * 1024
+
 // go does not offer support to customize the buffer size for
 // io.Copy directly, so we need to implement a custom type with:
 // ReadFrom and Write
@@ -17,10 +20,10 @@ type FixedBuffer struct {
 	buf []byte
 }
 
-func NewFixedBuffer(w io.Writer, size int64) *FixedBuffer {
+func NewFixedBuffer(w io.Writer, size int) *FixedBuffer {
 	return &FixedBuffer{
-		w: w,
-		buf:  make([]byte, size),
+		w:   w,
+		buf: make([]byte, size),
 	}
 }
 
@@ -82,7 +85,7 @@ func dd(srcPath, dstPath string) error {
 	}()
 
 	// huge default bufsize
-	w := NewFixedBuffer(dst, 4*1024*1024)
+	w := NewFixedBuffer(dst, defaultBufSize)
 
 	stat, err := src.Stat()
 	if err != nil {

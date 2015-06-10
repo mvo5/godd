@@ -28,6 +28,9 @@ func (g *GoddTestSuite) TearDownTests(c *C) {
 }
 
 func (g *GoddTestSuite) TestSimple(c *C) {
+	// ensure we test with tiny buffer
+	defaultBufSize = 2
+
 	canary := []byte("foo bar")
 	err := ioutil.WriteFile("src", canary, 0644)
 	c.Assert(err, IsNil)
