@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -61,7 +63,7 @@ func ddAtoi(s string) (int, error) {
 		fac = 1000 * 1000 * 1000 * 1000
 	}
 	// adjust string if its from xB group
-	if fac % 10 == 0 {
+	if fac%10 == 0 {
 		s = s[:len(s)-2]
 	}
 
@@ -79,7 +81,7 @@ func ddAtoi(s string) (int, error) {
 		fac = 1024 * 1024 * 1024 * 1024
 	}
 	// ajust string if its from the X group
-	if fac % 512 == 0  {
+	if fac%512 == 0 {
 		s = s[:len(s)-1]
 	}
 
@@ -123,6 +125,49 @@ func parseArgs(args []string) (*ddOpts, error) {
 	return &opts, nil
 }
 
+var mountinfoPath = "/proc/self/mountinfo"
+
+func sanityCheckDst(dstPath string) error {
+	// see https://www.kernel.org/doc/Documentation/filesystems/proc.txt,
+	// sec. 3.5
+	f, err := os.Open(mountinfoPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// resolve any symlink to the target
+	resolvedDstPath, err := filepath.EvalSymlinks(dstPath)
+	if err == nil {
+		dstPath = resolvedDstPath
+	}
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		l := strings.Fields(scanner.Text())
+		if len(l) == 0 {
+			continue
+		}
+		mountPoint := l[4]
+		mountSrc := l[9]
+
+		// resolve any symlinks in mountSrc
+		resolvedMountSrc, err := filepath.EvalSymlinks(mountSrc)
+		if err == nil {
+			mountSrc = resolvedMountSrc
+		}
+
+		if strings.HasPrefix(mountSrc, dstPath) {
+			return fmt.Errorf("%s is mounted on %s", mountSrc, mountPoint)
+		}
+	}
+
+	return scanner.Err()
+}
+
 func dd(srcPath, dstPath string, bs int) error {
 	if bs == 0 {
 		bs = defaultBufSize
@@ -133,6 +178,10 @@ func dd(srcPath, dstPath string, bs int) error {
 		return err
 	}
 	defer src.Close()
+
+	if err := sanityCheckDst(dstPath); err != nil {
+		return err
+	}
 
 	dst, err := os.Create(dstPath)
 	if err != nil {
@@ -165,7 +214,7 @@ func main() {
 	}
 
 	if err := dd(opts.src, opts.dst, opts.bs); err != nil {
-		fmt.Println(fmt.Errorf("failed to dd %v", err))
+		fmt.Println(fmt.Errorf("failed to dd: %v", err))
 		os.Exit(1)
 	}
 }

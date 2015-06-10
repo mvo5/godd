@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -20,7 +22,9 @@ func (g *GoddTestSuite) SetUpTests(c *C) {
 	var err error
 	g.cwd, err = os.Getwd()
 	c.Assert(err, IsNil)
-	os.Chdir(c.MkDir())
+	tempdir := c.MkDir()
+	os.Chdir(tempdir)
+
 }
 
 func (g *GoddTestSuite) TearDownTests(c *C) {
@@ -85,4 +89,37 @@ func (g *GoddTestSuite) TestParseDDTwo(c *C) {
 	n, err := ddAtoi("5kB")
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5*1000)
+}
+
+func makeMountInfo(c *C, mountSrc, mountPath string) {
+	// write a example mountinfo
+	cwd, err := os.Getwd()
+	c.Assert(err, IsNil)
+	mountinfoPath = filepath.Join(cwd, "mountinfo")
+	err = ioutil.WriteFile(mountinfoPath, []byte(fmt.Sprintf(`425 22 8:50 / %s rw,nosuid,nodev,relatime shared:442 - ext4 %s rw,data=ordered`, mountPath, mountSrc)), 0644)
+	c.Assert(err, IsNil)
+}
+
+func (g *GoddTestSuite) TestSanityCheckDstOk(c *C) {
+	makeMountInfo(c, "/dev/sdd2", "/media/ubuntu/a")
+	err := sanityCheckDst("/some/path")
+	c.Assert(err, IsNil)
+}
+
+func (g *GoddTestSuite) TestSanityCheckDstMounted(c *C) {
+	makeMountInfo(c, "/dev/sdd2", "/media/ubuntu/a")
+	err := sanityCheckDst("/dev/sdd2")
+	c.Assert(err, ErrorMatches, "/dev/sdd2 is mounted on /media/ubuntu/a")
+}
+
+func (g *GoddTestSuite) TestSanityCheckDstParentMounted(c *C) {
+	makeMountInfo(c, "/dev/sdd2", "/media/ubuntu/a")
+	err := sanityCheckDst("/dev/sdd")
+	c.Assert(err, ErrorMatches, "/dev/sdd2 is mounted on /media/ubuntu/a")
+}
+
+func (g *GoddTestSuite) TestSanityCheckDst(c *C) {
+	makeMountInfo(c, "/dev/sdd2", "/media/ubuntu/a")
+	err := sanityCheckDst("/dev/sdd1")
+	c.Assert(err, IsNil)
 }
