@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/cheggaaa/pb"
+	"github.com/mvo5/godd/udev"
 )
 
 // var to allow tests to change it
@@ -90,7 +91,29 @@ func ddAtoi(s string) (int, error) {
 	return n, err
 }
 
+func findNonCdromRemovableDeviceFiles() (res []string) {
+	c := udev.New(nil)
+	for _, d := range c.QueryBySubsystem("block") {
+		if d.GetSysfsAttr("removable") == "1" && d.GetProperty("ID_CDROM") != "1" {
+			res = append(res, d.GetDeviceFile())
+		}
+	}
+
+	return res
+}
+
 func parseArgs(args []string) (*ddOpts, error) {
+
+	// support: auto-detect removable devices
+	if len(args) == 1 {
+		fmt.Printf(`
+No target selected, detected the following removable device:
+  %s
+
+`, strings.Join(findNonCdromRemovableDeviceFiles(), "\n  "))
+		return nil, fmt.Errorf("please select target device")
+	}
+
 	// support:
 	//   # godd in-file out-file
 	// for the lazy people
@@ -209,7 +232,7 @@ func dd(srcPath, dstPath string, bs int) error {
 func main() {
 	opts, err := parseArgs(os.Args[1:])
 	if err != nil {
-		fmt.Println(fmt.Errorf("failed to parse args %v", err))
+		fmt.Println(fmt.Errorf("failed to parse args: %v", err))
 		os.Exit(1)
 	}
 
