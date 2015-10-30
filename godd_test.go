@@ -68,15 +68,23 @@ func (g *GoddTestSuite) TestParseError(c *C) {
 }
 
 func (g *GoddTestSuite) TestParseBs(c *C) {
-	opts, err := parseArgs([]string{"bs=5"})
+	opts, err := parseArgs([]string{"if=src", "of=dst", "bs=5"})
 	c.Assert(err, IsNil)
-	c.Assert(opts, DeepEquals, &ddOpts{bs: 5})
+	c.Assert(opts, DeepEquals, &ddOpts{
+		src: "src",
+		dst: "dst",
+		bs:  5,
+	})
 }
 
 func (g *GoddTestSuite) TestParseBsWithString(c *C) {
-	opts, err := parseArgs([]string{"bs=5M"})
+	opts, err := parseArgs([]string{"if=src", "of=dst", "bs=5M"})
 	c.Assert(err, IsNil)
-	c.Assert(opts, DeepEquals, &ddOpts{bs: 5 * 1024 * 1024})
+	c.Assert(opts, DeepEquals, &ddOpts{
+		src: "src",
+		dst: "dst",
+		bs:  5 * 1024 * 1024,
+	})
 }
 
 func (g *GoddTestSuite) TestParseDD(c *C) {
