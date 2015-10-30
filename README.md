@@ -1,3 +1,4 @@
+[![Build Status][travis-image]][travis-url]
 # godd - a dd like tool with progress bar
 
 A small dd like tool with progressbar. Useful when writing disk images to 
@@ -24,3 +25,6 @@ No target selected, detected the following removable device:
 
 failed to parse args: please select target device
 ```
+
+[travis-image]: https://travis-ci.org/mvo5/godd.svg?branch=master
+[travis-url]: https://travis-ci.org/mvo5/godd.svg?branch=master
