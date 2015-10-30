@@ -1,9 +1,9 @@
 package udev
 
 /*
-#cgo pkg-config: libudev
+#cgo pkg-config: gudev-1.0
 
-#include <libudev.h>
+#include <gudev/gudev.h>
 */
 import "C"
 
@@ -13,20 +13,26 @@ import (
 )
 
 type Client struct {
-	p *C.struct__udev
+	p *C.struct__GUdevClient
 }
 
 type Device struct {
-	p *C.struct__udev
+	p *C.struct__GUdevDevice
 }
 
-func New() *Client {
-	p := C.udev_new()
+func New(subsystems []string) *Client {
+	// convert go to char **
+	cs := make([]*C.gchar, len(subsystems)+1)
+	for i := range subsystems {
+		cs[i] = (*C.gchar)(C.CString(subsystems[i]))
+	}
+
+	p := C.g_udev_client_new((**C.gchar)(unsafe.Pointer(&cs[0])))
 	client := &Client{
 		p: p,
 	}
 	runtime.SetFinalizer(client, func(p *Client) {
-		C.udev_unref(client.p)
+		C.g_object_unref((C.gpointer)(client.p))
 	})
 	return client
 }
