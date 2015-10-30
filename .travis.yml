@@ -4,4 +4,4 @@ language: go
 
 before_install:
   - sudo apt-get update
-  - sudo apt-get install libgudev-dev
+  - sudo apt-get install -y libgudev-1.0-dev
