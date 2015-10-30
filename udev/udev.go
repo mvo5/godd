@@ -1,4 +1,4 @@
-1package udev
+package udev
 
 /*
 #cgo pkg-config: libudev
