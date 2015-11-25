@@ -1,0 +1,23 @@
+name: godd
+version: 0.1
+vendor: Michael Vogt <mvo@ubuntu.com>
+summary: godd is a nice dd replacement
+description: |
+ godd is a nice improvement over dd as it has nice progress bars and
+ knows about target devices
+icon: icon.png
+
+binaries:
+  godd:
+    exec: bin/godd
+
+parts:
+  godd:
+    plugin: go
+    source: .
+    stage-packages: [libgudev-1.0-dev]
+    snap:
+     - usr/lib/x86_64-linux-gnu/libgudev-1.0.so*
+     - usr/lib/x86_64-linux-gnu/libobject-2.0.so*
+     - usr/lib/x86_64-linux-gnu/libglib-2.0.so*
+     - bin/godd*
