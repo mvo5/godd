@@ -10,6 +10,8 @@ icon: icon.png
 binaries:
   godd:
     exec: bin/godd
+    security-override:
+      read-paths: ["/proc/self/mountinfo"]
 
 parts:
   godd:
