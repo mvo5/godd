@@ -14,7 +14,7 @@ import (
 )
 
 // var to allow tests to change it
-var defaultBufSize = 4 * 1024 * 1024
+var defaultBufSize = int64(4 * 1024 * 1024)
 
 // go does not offer support to customize the buffer size for
 // io.Copy directly, so we need to implement a custom type with:
@@ -24,7 +24,7 @@ type FixedBuffer struct {
 	buf []byte
 }
 
-func NewFixedBuffer(w io.Writer, size int) *FixedBuffer {
+func NewFixedBuffer(w io.Writer, size int64) *FixedBuffer {
 	return &FixedBuffer{
 		w:   w,
 		buf: make([]byte, size),
@@ -43,16 +43,16 @@ func (f *FixedBuffer) Write(data []byte) (int, error) {
 type ddOpts struct {
 	src string
 	dst string
-	bs  int
+	bs  int64
 }
 
-func ddAtoi(s string) (int, error) {
+func ddAtoi(s string) (int64, error) {
 	if len(s) < 2 {
-		return strconv.Atoi(s)
+		return strconv.ParseInt(s, 10, 64)
 	}
 
 	// dd supports suffixes via two chars like "kB"
-	fac := 1
+	fac := int64(1)
 	switch s[len(s)-2:] {
 	case "kB":
 		fac = 1000
@@ -86,7 +86,7 @@ func ddAtoi(s string) (int, error) {
 		s = s[:len(s)-1]
 	}
 
-	n, err := strconv.Atoi(s)
+	n, err := strconv.ParseInt(s, 10, 64)
 	n *= fac
 	return n, err
 }
@@ -191,7 +191,7 @@ func sanityCheckDst(dstPath string) error {
 	return scanner.Err()
 }
 
-func dd(srcPath, dstPath string, bs int) error {
+func dd(srcPath, dstPath string, bs int64) error {
 	if bs == 0 {
 		bs = defaultBufSize
 	}
