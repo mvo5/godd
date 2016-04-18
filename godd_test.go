@@ -83,20 +83,20 @@ func (g *GoddTestSuite) TestParseBsWithString(c *C) {
 	c.Assert(opts, DeepEquals, &ddOpts{
 		src: "src",
 		dst: "dst",
-		bs:  5 * 1024 * 1024,
+		bs:  int64(5 * 1024 * 1024),
 	})
 }
 
 func (g *GoddTestSuite) TestParseDD(c *C) {
 	n, err := ddAtoi("5M")
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5*1024*1024)
+	c.Assert(n, Equals, int64(5*1024*1024))
 }
 
 func (g *GoddTestSuite) TestParseDDTwo(c *C) {
 	n, err := ddAtoi("5kB")
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5*1000)
+	c.Assert(n, Equals, int64(5*1000))
 }
 
 func makeMountInfo(c *C, mountSrc, mountPath string) {
