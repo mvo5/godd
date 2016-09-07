@@ -1,5 +1,12 @@
 package main
 
+/*
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+*/
+import "C"
+
 import (
 	"bufio"
 	"fmt"
@@ -191,6 +198,52 @@ func sanityCheckDst(dstPath string) error {
 	return scanner.Err()
 }
 
+func copyWithHoles(src *os.File, dst *os.File, pbar *pb.ProgressBar) error {
+	// FIXME: do something with pb
+
+	stat, err := src.Stat()
+	if err != nil {
+		return err
+	}
+	if err := dst.Truncate(stat.Size()); err != nil {
+		return err
+	}
+
+	// iterate over the file
+	SEEK_DATA := C.int(3)
+	SEEK_HOLE := C.int(4)
+	off := C.__off_t(0)
+	for int64(off) < stat.Size() {
+		offStart := C.lseek(C.int(src.Fd()), off, SEEK_DATA)
+		if offStart < 0 {
+			break
+		}
+		offEnd := C.lseek(C.int(src.Fd()), offStart, SEEK_HOLE)
+		if offEnd < 0 {
+			break
+		}
+
+		if _, err := src.Seek(int64(offStart), 0); err != nil {
+			return fmt.Errorf("Seek 1 failed: %s", err)
+		}
+		if _, err := dst.Seek(int64(offStart), 0); err != nil {
+			return fmt.Errorf("Seek 2 failed: %s", err)
+		}
+
+		toCopy := int64(offEnd - offStart)
+		if _, err := io.CopyN(dst, src, toCopy); err != nil {
+			return fmt.Errorf("io.Copy failed: %s", err)
+		}
+
+		// move offset forward
+		off = offEnd
+		pbar.Set64(int64(off))
+	}
+	pbar.Set64(stat.Size())
+
+	return nil
+}
+
 func dd(srcPath, dstPath string, bs int) error {
 	if bs == 0 {
 		bs = defaultBufSize
@@ -215,18 +268,15 @@ func dd(srcPath, dstPath string, bs int) error {
 		dst.Close()
 	}()
 
-	// huge default bufsize
-	w := NewFixedBuffer(dst, bs)
-
 	stat, err := src.Stat()
 	if err != nil {
 		return err
 	}
 	pbar := pb.New64(stat.Size()).SetUnits(pb.U_BYTES)
 	pbar.Start()
-	mw := io.MultiWriter(w, pbar)
-	_, err = io.Copy(mw, src)
-	return err
+	defer pbar.Finish()
+
+	return copyWithHoles(src, dst, pbar)
 }
 
 func main() {
