@@ -1,16 +1,14 @@
 name: godd
-version: 0.1
-vendor: Michael Vogt <mvo@ubuntu.com>
 summary: godd is a nice dd replacement
 description: |
  godd is a nice improvement over dd as it has nice progress bars and
  knows about target devices
-icon: icon.png
+version: 0.2
+confinement: devmode
 
-binaries:
+apps:
   godd:
-    exec: bin/godd
-    security-template: unconfined
+    command: bin/godd
 
 parts:
   godd:
