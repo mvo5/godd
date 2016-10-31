@@ -2,7 +2,9 @@
 # godd - a dd like tool with progress bar
 
 A small dd like tool with progressbar. Useful when writing disk images to 
-e.g. sd-cards.
+e.g. SD cards.
+
+It can autodetect (or be told) the compression format of the input file.
 
 It will also sanity check that you don't write to a mounted device
 (no more accidental dd of your main hdd anymore). It uses udev to
@@ -13,8 +15,8 @@ detect possible targets and will write synchronously (no need to run
 
 Simple usage:
 ```
-$ sudo godd ubuntu-15.04-snappy-armhf-bbb.img /dev/sdd
-1.29 GB / 3.63 GB [================>-----------------------------] 35.56 % 3m28s
+$ sudo godd ubuntu-15.04-snappy-armhf-bbb.img.xz /dev/sdd
+1.29 GB / ? [-----------=-----------------------------]
 ```
 
 Without target it will display detected removable devices:

@@ -2,14 +2,18 @@ package main
 
 import (
 	"bufio"
+	"compress/bzip2"
+	"compress/gzip"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/cheggaaa/pb"
+	"github.com/danielrh/go-xz"
 	"github.com/mvo5/godd/udev"
 )
 
@@ -39,11 +43,57 @@ func (f *FixedBuffer) Write(data []byte) (int, error) {
 	return f.w.Write(data)
 }
 
+type compType uint8
+
+const (
+	compNone compType = 1 << iota
+	compGzip
+	compBzip2
+	compXz
+	compAuto compType = 0
+)
+
+func (c compType) String() string {
+	switch c {
+	case compNone:
+		return "none"
+	case compGzip:
+		return "gzip"
+	case compBzip2:
+		return "bzip2"
+	case compXz:
+		return "xz"
+	case compAuto:
+		return "auto"
+	default:
+		return "unknown"
+	}
+}
+
 // the dd releated stuff
 type ddOpts struct {
 	src string
 	dst string
 	bs  int64
+
+	comp compType
+}
+
+func ddComp(s string) (compType, error) {
+	switch s {
+	case "auto":
+		return compAuto, nil
+	case "none":
+		return compNone, nil
+	case "gz", "gzip":
+		return compGzip, nil
+	case "bz2", "bzip2":
+		return compBzip2, nil
+	case "xz":
+		return compXz, nil
+	default:
+		return compAuto, fmt.Errorf("unknown compression type %q", s)
+	}
 }
 
 func ddAtoi(s string) (int64, error) {
@@ -140,6 +190,12 @@ No target selected, detected the following removable device:
 				return nil, err
 			}
 			opts.bs = bs
+		case "comp":
+			comp, err := ddComp(l[1])
+			if err != nil {
+				return nil, err
+			}
+			opts.comp = comp
 		default:
 			return nil, fmt.Errorf("unknown argument %q", arg)
 		}
@@ -191,22 +247,61 @@ func sanityCheckDst(dstPath string) error {
 	return scanner.Err()
 }
 
-func dd(srcPath, dstPath string, bs int64) error {
-	if bs == 0 {
-		bs = defaultBufSize
+func guessComp(src string) compType {
+	switch filepath.Ext(src) {
+	case ".gz":
+		return compGzip
+	case ".bz2":
+		return compBzip2
+	case ".xz":
+		return compXz
+	default:
+		return compNone
+	}
+}
+
+func (dd *ddOpts) open() (io.ReadCloser, error) {
+	r, err := os.Open(dd.src)
+	if err != nil {
+		return nil, err
 	}
 
-	src, err := os.Open(srcPath)
+	comp := dd.comp
+	if comp == compAuto {
+		comp = guessComp(dd.src)
+	}
+
+	switch comp {
+	case compNone:
+		return r, nil
+	case compGzip:
+		return gzip.NewReader(r)
+	case compBzip2:
+		return ioutil.NopCloser(bzip2.NewReader(r)), nil
+	case compXz:
+		cr := xz.NewDecompressionReadCloser(r)
+		return &cr, nil
+	}
+
+	panic("can't happen")
+}
+
+func (dd *ddOpts) Run() error {
+	if dd.bs == 0 {
+		dd.bs = defaultBufSize
+	}
+
+	src, err := dd.open()
 	if err != nil {
 		return err
 	}
 	defer src.Close()
 
-	if err := sanityCheckDst(dstPath); err != nil {
+	if err := sanityCheckDst(dd.dst); err != nil {
 		return err
 	}
 
-	dst, err := os.Create(dstPath)
+	dst, err := os.Create(dd.dst)
 	if err != nil {
 		return err
 	}
@@ -216,13 +311,19 @@ func dd(srcPath, dstPath string, bs int64) error {
 	}()
 
 	// huge default bufsize
-	w := NewFixedBuffer(dst, bs)
+	w := NewFixedBuffer(dst, dd.bs)
 
-	stat, err := src.Stat()
-	if err != nil {
-		return err
+	var pbar *pb.ProgressBar
+	switch src := src.(type) {
+	case *os.File:
+		stat, err := src.Stat()
+		if err != nil {
+			return err
+		}
+		pbar = pb.New64(stat.Size()).SetUnits(pb.U_BYTES)
+	default:
+		pbar = pb.New64(0).SetUnits(pb.U_BYTES)
 	}
-	pbar := pb.New64(stat.Size()).SetUnits(pb.U_BYTES)
 	pbar.Start()
 	mw := io.MultiWriter(w, pbar)
 	_, err = io.Copy(mw, src)
@@ -230,13 +331,13 @@ func dd(srcPath, dstPath string, bs int64) error {
 }
 
 func main() {
-	opts, err := parseArgs(os.Args[1:])
+	dd, err := parseArgs(os.Args[1:])
 	if err != nil {
 		fmt.Println(fmt.Errorf("failed to parse args: %v", err))
 		os.Exit(1)
 	}
 
-	if err := dd(opts.src, opts.dst, opts.bs); err != nil {
+	if err := dd.Run(); err != nil {
 		fmt.Println(fmt.Errorf("failed to dd: %v", err))
 		os.Exit(1)
 	}
