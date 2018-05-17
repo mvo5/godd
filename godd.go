@@ -14,8 +14,8 @@ import (
 	"strings"
 
 	"github.com/cheggaaa/pb"
-	"github.com/danielrh/go-xz"
 	"github.com/mvo5/godd/udev"
+	"github.com/ulikunitz/xz"
 )
 
 var (
@@ -302,8 +302,8 @@ func (dd *ddOpts) open() (r io.ReadCloser, size int64, err error) {
 	case compBzip2:
 		return ioutil.NopCloser(bzip2.NewReader(r)), size, nil
 	case compXz:
-		cr := xz.NewDecompressionReadCloser(r)
-		return &cr, size, nil
+		cr, err := xz.NewReader(r)
+		return ioutil.NopCloser(cr), size, err
 	}
 
 	panic("can't happen")
