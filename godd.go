@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -98,6 +99,19 @@ func ddComp(s string) (compType, error) {
 		return compXz, nil
 	default:
 		return compAuto, fmt.Errorf("unknown compression type %q", s)
+	}
+}
+
+func guessComp(src string) compType {
+	switch filepath.Ext(src) {
+	case ".gz":
+		return compGzip
+	case ".bz2":
+		return compBzip2
+	case ".xz":
+		return compXz
+	default:
+		return compNone
 	}
 }
 
@@ -252,29 +266,28 @@ func sanityCheckDst(dstPath string) error {
 	return scanner.Err()
 }
 
-func guessComp(src string) compType {
-	switch filepath.Ext(src) {
-	case ".gz":
-		return compGzip
-	case ".bz2":
-		return compBzip2
-	case ".xz":
-		return compXz
-	default:
-		return compNone
-	}
-}
-
-func (dd *ddOpts) open() (io.ReadCloser, error) {
+func (dd *ddOpts) open() (r io.ReadCloser, size int64, err error) {
 	if dd.src == "-" {
-		return Stdin, nil
+		return Stdin, 0, nil
 	}
 
-	r, err := os.Open(dd.src)
-	if err != nil {
-		return nil, err
+	// http url
+	if strings.HasPrefix(dd.src, "http://") || strings.HasPrefix(dd.src, "https://") {
+		resp, err := http.Get(dd.src)
+		if err != nil {
+			return nil, 0, err
+		}
+		size = resp.ContentLength
+		if size < 0 {
+			size = 0
+		}
+		r = resp.Body
+	} else {
+		r, err = os.Open(dd.src)
+		if err != nil {
+			return nil, 0, err
+		}
 	}
-
 	comp := dd.comp
 	if comp == compAuto {
 		comp = guessComp(dd.src)
@@ -282,14 +295,15 @@ func (dd *ddOpts) open() (io.ReadCloser, error) {
 
 	switch comp {
 	case compNone:
-		return r, nil
+		return r, size, nil
 	case compGzip:
-		return gzip.NewReader(r)
+		gzr, err := gzip.NewReader(r)
+		return gzr, size, err
 	case compBzip2:
-		return ioutil.NopCloser(bzip2.NewReader(r)), nil
+		return ioutil.NopCloser(bzip2.NewReader(r)), size, nil
 	case compXz:
 		cr := xz.NewDecompressionReadCloser(r)
-		return &cr, nil
+		return &cr, size, nil
 	}
 
 	panic("can't happen")
@@ -307,7 +321,7 @@ func (dd *ddOpts) Run() error {
 		dd.bs = defaultBufSize
 	}
 
-	src, err := dd.open()
+	src, size, err := dd.open()
 	if err != nil {
 		return err
 	}
@@ -329,20 +343,9 @@ func (dd *ddOpts) Run() error {
 	// huge default bufsize
 	w := NewFixedBuffer(dst, dd.bs)
 
-	var pbar *pb.ProgressBar
-	switch src := src.(type) {
-	case *os.File:
-		stat, err := src.Stat()
-		if err != nil {
-			return err
-		}
-		pbar = pb.New64(stat.Size()).SetUnits(pb.U_BYTES)
-	default:
-		pbar = pb.New64(0).SetUnits(pb.U_BYTES)
-	}
+	pbar := pb.New64(size).SetUnits(pb.U_BYTES)
 	pbar.Start()
-	mw := io.MultiWriter(w, pbar)
-	_, err = io.Copy(mw, src)
+	_, err = io.Copy(w, pbar.NewProxyReader(src))
 	pbar.Finish()
 	return err
 }

@@ -2,8 +2,12 @@ name: godd
 summary: godd is a nice dd replacement
 description: |
  godd is a nice improvement over dd as it has nice progress bars and
- knows about target devices
-version: 0.2
+ knows about target devices and can stream from http and decompress
+ on the fly.
+
+ This means it is possible to e.g. install a Ubuntu Core image via
+ godd http://cdimage.../ubuntu-core-16-amd64.img.xz /dev/sdc
+version: 0.5
 confinement: devmode
 
 apps:
