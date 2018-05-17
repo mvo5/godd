@@ -18,7 +18,7 @@ type GoddTestSuite struct {
 
 var _ = Suite(&GoddTestSuite{})
 
-func (g *GoddTestSuite) SetUpTests(c *C) {
+func (g *GoddTestSuite) SetUpTest(c *C) {
 	var err error
 	g.cwd, err = os.Getwd()
 	c.Assert(err, IsNil)
@@ -27,7 +27,7 @@ func (g *GoddTestSuite) SetUpTests(c *C) {
 
 }
 
-func (g *GoddTestSuite) TearDownTests(c *C) {
+func (g *GoddTestSuite) TearDownTest(c *C) {
 	os.Chdir(g.cwd)
 }
 
@@ -39,7 +39,12 @@ func (g *GoddTestSuite) TestSimple(c *C) {
 	err := ioutil.WriteFile("src", canary, 0644)
 	c.Assert(err, IsNil)
 
-	err = dd("src", "dst", 0)
+	dd := &ddOpts{
+		src: "src",
+		dst: "dst",
+		bs:  0,
+	}
+	err = dd.Run()
 	c.Assert(err, IsNil)
 
 	read, err := ioutil.ReadFile("dst")
@@ -59,6 +64,41 @@ func (g *GoddTestSuite) TestParseIfOf(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(opts.src, Equals, "src")
 	c.Check(opts.dst, Equals, "dst")
+}
+
+func (g *GoddTestSuite) TestParseComp(c *C) {
+	type tT struct {
+		arg  string
+		comp compType
+	}
+	for _, t := range []tT{
+		{arg: "comp=gz", comp: compGzip},
+		{arg: "comp=gzip", comp: compGzip},
+		{arg: "comp=bz2", comp: compBzip2},
+		{arg: "comp=bzip2", comp: compBzip2},
+		{arg: "comp=xz", comp: compXz},
+		{arg: "comp=none", comp: compNone},
+		{arg: "comp=auto", comp: compAuto},
+	} {
+		opts, err := parseArgs([]string{"if=src", "of=dst", t.arg})
+		c.Assert(err, IsNil, Commentf(t.arg))
+		c.Check(opts.comp, Equals, t.comp, Commentf(t.arg))
+	}
+}
+
+func (g *GoddTestSuite) TestGuessComp(c *C) {
+	type tT struct {
+		arg  string
+		comp compType
+	}
+	for _, t := range []tT{
+		{arg: "foo.gz", comp: compGzip},
+		{arg: "foo.bz2", comp: compBzip2},
+		{arg: "foo.xz", comp: compXz},
+		{arg: "foo.txt", comp: compNone},
+	} {
+		c.Check(guessComp(t.arg), Equals, t.comp)
+	}
 }
 
 func (g *GoddTestSuite) TestParseError(c *C) {
