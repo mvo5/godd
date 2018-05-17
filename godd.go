@@ -343,7 +343,7 @@ func (dd *ddOpts) Run() error {
 	pbar.Start()
 	mw := io.MultiWriter(w, pbar)
 	_, err = io.Copy(mw, src)
-
+	pbar.Finish()
 	return err
 }
 
