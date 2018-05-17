@@ -24,11 +24,13 @@ func (g *GoddTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	tempdir := c.MkDir()
 	os.Chdir(tempdir)
-
 }
 
 func (g *GoddTestSuite) TearDownTest(c *C) {
 	os.Chdir(g.cwd)
+
+	Stdout = os.Stdout
+	Stdin = os.Stdin
 }
 
 func (g *GoddTestSuite) TestSimple(c *C) {
@@ -170,4 +172,24 @@ func (g *GoddTestSuite) TestSanityCheckDst(c *C) {
 	makeMountInfo(c, "/dev/sdd2", "/media/ubuntu/a")
 	err := sanityCheckDst("/dev/sdd1")
 	c.Assert(err, IsNil)
+}
+
+func (g *GoddTestSuite) TestOutputToStdout(c *C) {
+	mockStdout, err := os.Create(filepath.Join(c.MkDir(), "stdout"))
+	c.Assert(err, IsNil)
+	Stdout = mockStdout
+
+	canary := []byte("foo bar")
+	err = ioutil.WriteFile("src", canary, 0644)
+	c.Assert(err, IsNil)
+
+	dd, err := parseArgs([]string{"src", "-"})
+	c.Assert(err, IsNil)
+
+	err = dd.Run()
+	c.Assert(err, IsNil)
+
+	got, err := ioutil.ReadFile(mockStdout.Name())
+	c.Assert(err, IsNil)
+	c.Check(got, DeepEquals, canary)
 }

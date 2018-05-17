@@ -17,8 +17,13 @@ import (
 	"github.com/mvo5/godd/udev"
 )
 
-// var to allow tests to change it
-var defaultBufSize = int64(4 * 1024 * 1024)
+var (
+	// var to allow tests to change it
+	defaultBufSize = int64(4 * 1024 * 1024)
+
+	Stdin  = os.Stdin
+	Stdout = os.Stdout
+)
 
 // go does not offer support to customize the buffer size for
 // io.Copy directly, so we need to implement a custom type with:
@@ -261,6 +266,10 @@ func guessComp(src string) compType {
 }
 
 func (dd *ddOpts) open() (io.ReadCloser, error) {
+	if dd.src == "-" {
+		return Stdin, nil
+	}
+
 	r, err := os.Open(dd.src)
 	if err != nil {
 		return nil, err
@@ -286,6 +295,13 @@ func (dd *ddOpts) open() (io.ReadCloser, error) {
 	panic("can't happen")
 }
 
+func (dd *ddOpts) create() (*os.File, error) {
+	if dd.dst == "-" {
+		return Stdout, nil
+	}
+	return os.Create(dd.dst)
+}
+
 func (dd *ddOpts) Run() error {
 	if dd.bs == 0 {
 		dd.bs = defaultBufSize
@@ -301,7 +317,7 @@ func (dd *ddOpts) Run() error {
 		return err
 	}
 
-	dst, err := os.Create(dd.dst)
+	dst, err := dd.create()
 	if err != nil {
 		return err
 	}
@@ -327,6 +343,7 @@ func (dd *ddOpts) Run() error {
 	pbar.Start()
 	mw := io.MultiWriter(w, pbar)
 	_, err = io.Copy(mw, src)
+
 	return err
 }
 
