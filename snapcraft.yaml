@@ -20,13 +20,10 @@ parts:
     source: .
     stage-packages: [libgudev-1.0-dev]
     override-build: |
-      # we need to go back to an older version of x/sys/unix because
-      # the version in xenial does not support runtime.KeepAlive
-      govendor sync
-      snapcraftctl build
+      # launchpad will use the /usr/bin/go (go-1.6) by default
+      /snap/bin/go build
     build-snaps:
       - go
-      - govendor
     prime:
      - usr/lib/*/libgudev-1.0.so*
      - usr/lib/*/libobject-2.0.so*
