@@ -19,12 +19,14 @@ parts:
     plugin: go
     source: .
     stage-packages: [libgudev-1.0-dev]
+    override-build: |
+      # we need to go back to an older version of x/sys/unix because
+      # the version in xenial does not support runtime.KeepAlive
+      govendor sync
+      snapcraftctl build
     build-snaps:
       - go
-    override-build: |
-      # ensure the go from the snap is used
-      export PATH=/snap/bin:$PATH
-      snapcraftctl build
+      - govendor
     prime:
      - usr/lib/*/libgudev-1.0.so*
      - usr/lib/*/libobject-2.0.so*
