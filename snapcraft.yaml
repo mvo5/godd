@@ -18,13 +18,15 @@ parts:
   godd:
     plugin: go
     source: .
+    go-importpath: github.com/mvo5/godd
     stage-packages: [libgudev-1.0-dev]
-    override-pull: |
-      export PATH=/snap/bin:$PATH
-      snapcraftctl pull
     override-build: |
-      export PATH=/snap/bin:$PATH
+      # the horror the horror
+      sudo mv /usr/bin/go /usr/bin/go.system
+      sudo ln -s /snap/bin/go /usr/bin/go
       snapcraftctl build
+      sudo rm /usr/bin/go
+      sudo mv /usr/bin/go.system /usr/bin/go
     build-snaps:
       - go
     prime:
