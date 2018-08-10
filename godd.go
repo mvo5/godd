@@ -160,26 +160,33 @@ func ddAtoi(s string) (int64, error) {
 	return n, err
 }
 
-func findNonCdromRemovableDeviceFiles() (res []string) {
-	c := udev.New(nil)
-	for _, d := range c.QueryBySubsystem("block") {
+func findNonCdromRemovableDeviceFiles() (res []string, err error) {
+	devices, err := udev.QueryBySubsystem("block")
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range devices {
 		if d.GetSysfsAttr("removable") == "1" && d.GetProperty("ID_CDROM") != "1" {
 			res = append(res, d.GetDeviceFile())
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 func parseArgs(args []string) (*ddOpts, error) {
 
 	// support: auto-detect removable devices
 	if len(args) == 1 {
+		devices, err := findNonCdromRemovableDeviceFiles()
+		if err != nil {
+			return nil, err
+		}
 		fmt.Printf(`
 No target selected, detected the following removable device:
   %s
 
-`, strings.Join(findNonCdromRemovableDeviceFiles(), "\n  "))
+`, strings.Join(devices, "\n  "))
 		return nil, fmt.Errorf("please select target device")
 	}
 
