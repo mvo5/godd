@@ -1,5 +1,5 @@
 [![Build Status][travis-image]][travis-url]
-# godd - a dd like tool with progress bar
+# godd - a dd like tool with progress bar and minimal guard-rails
 
 A small dd like tool with progressbar. Useful when writing disk images to 
 e.g. SD cards.
