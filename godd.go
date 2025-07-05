@@ -21,7 +21,7 @@ import (
 
 var (
 	// var to allow tests to change it
-	defaultBufSize = int64(4 * 1024 * 1024)
+	defaultBufSize = int64(4 * 1024 * 1024 * 1024)
 
 	Stdin  = os.Stdin
 	Stdout = os.Stdout
@@ -319,11 +319,11 @@ func (dd *ddOpts) open() (r io.ReadCloser, size int64, err error) {
 	panic("can't happen")
 }
 
-func (dd *ddOpts) create() (*os.File, error) {
+func (dd *ddOpts) openOrCreate() (*os.File, error) {
 	if dd.dst == "-" {
 		return Stdout, nil
 	}
-	return os.Create(dd.dst)
+	return os.OpenFile(dd.dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0666)
 }
 
 func (dd *ddOpts) Run() error {
@@ -341,7 +341,7 @@ func (dd *ddOpts) Run() error {
 		return err
 	}
 
-	dst, err := dd.create()
+	dst, err := dd.openOrCreate()
 	if err != nil {
 		return err
 	}
