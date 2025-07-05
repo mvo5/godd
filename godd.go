@@ -21,7 +21,7 @@ import (
 
 var (
 	// var to allow tests to change it
-	defaultBufSize = int64(4 * 1024 * 1024 * 1024)
+	defaultBufSize = int64(32 * 1024 * 1024)
 
 	Stdin  = os.Stdin
 	Stdout = os.Stdout
