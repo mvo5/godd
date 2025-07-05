@@ -14,8 +14,9 @@ import (
 	"strings"
 
 	"github.com/cheggaaa/pb"
-	"github.com/mvo5/godd/udev"
 	"github.com/ulikunitz/xz"
+
+	"github.com/mvo5/godd/udev"
 )
 
 var (
@@ -282,11 +283,20 @@ func (dd *ddOpts) open() (r io.ReadCloser, size int64, err error) {
 			size = 0
 		}
 		r = resp.Body
+		// no close here, caller will close the body
 	} else {
-		r, err = os.Open(dd.src)
+		f, err := os.Open(dd.src)
 		if err != nil {
 			return nil, 0, err
 		}
+		// no close here, caller will close the file
+
+		st, err := f.Stat()
+		if err != nil {
+			return nil, 0, err
+		}
+		r = f
+		size = st.Size()
 	}
 	comp := dd.comp
 	if comp == compAuto {
