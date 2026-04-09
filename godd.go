@@ -4,15 +4,15 @@ import (
 	"bufio"
 	"compress/bzip2"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-
 	"github.com/cheggaaa/pb"
 	"github.com/ulikunitz/xz"
 
@@ -83,7 +83,9 @@ type ddOpts struct {
 	dst string
 	bs  int64
 
-	comp compType
+	comp   compType
+	verify bool
+	hash   string
 }
 
 func ddComp(s string) (compType, error) {
@@ -216,6 +218,12 @@ No target selected, detected the following removable device:
 				return nil, err
 			}
 			opts.comp = comp
+		case "verify":
+			if l[1] == "yes" || l[1] == "true" || l[1] == "1" {
+				opts.verify = true
+			}
+		case "hash":
+			opts.hash = l[1]
 		default:
 			return nil, fmt.Errorf("unknown argument %q", arg)
 		}
@@ -278,6 +286,9 @@ func (dd *ddOpts) open() (r io.ReadCloser, size int64, err error) {
 		if err != nil {
 			return nil, 0, err
 		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, 0, fmt.Errorf("unexpected HTTP status: %s", resp.Status)
+		}
 		size = resp.ContentLength
 		if size < 0 {
 			size = 0
@@ -310,10 +321,10 @@ func (dd *ddOpts) open() (r io.ReadCloser, size int64, err error) {
 		gzr, err := gzip.NewReader(r)
 		return gzr, size, err
 	case compBzip2:
-		return ioutil.NopCloser(bzip2.NewReader(r)), size, nil
+		return io.NopCloser(bzip2.NewReader(r)), size, nil
 	case compXz:
 		cr, err := xz.NewReader(r)
-		return ioutil.NopCloser(cr), size, err
+		return io.NopCloser(cr), size, err
 	}
 
 	panic("can't happen")
@@ -357,18 +368,42 @@ func (dd *ddOpts) Run() error {
 	pbar.Start()
 	_, err = io.Copy(w, pbar.NewProxyReader(src))
 	pbar.Finish()
-	return err
+	if err != nil {
+		return err
+	}
+
+	// verifiy the written data integriy
+	if dd.verify {
+		vf, err := dd.openOrCreate()
+		if err != nil {
+			return fmt.Errorf("failed to open destination for verification: %w", err)
+		}
+		defer vf.Close()
+
+		h := sha256.New()
+		if _, err := io.Copy(h, vf); err != nil {
+			return fmt.Errorf("failed to compute hash: %v", err)
+		}
+		computed := hex.EncodeToString(h.Sum(nil))
+		fmt.Fprintf(os.Stderr, "SHA256: %s\n", computed)
+
+		if dd.hash != "" && dd.hash != computed {
+			return fmt.Errorf("hash mismatch: expected %s, got %s", dd.hash, computed)
+		}
+	}
+
+	return nil
 }
 
 func main() {
 	dd, err := parseArgs(os.Args[1:])
 	if err != nil {
-		fmt.Println(fmt.Errorf("failed to parse args: %v", err))
+		fmt.Fprintf(os.Stderr, "failed to parse args: %v\n", err)
 		os.Exit(1)
 	}
 
 	if err := dd.Run(); err != nil {
-		fmt.Println(fmt.Errorf("failed to dd: %v", err))
+		fmt.Fprintf(os.Stderr, "failed to dd: %v\n", err)
 		os.Exit(1)
 	}
 }

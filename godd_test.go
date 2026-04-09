@@ -193,3 +193,33 @@ func (g *GoddTestSuite) TestOutputToStdout(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(got, DeepEquals, canary)
 }
+
+func TestVerify(t *testing.T) {
+	// save and restore
+	origBufSize := defaultBufSize
+	defaultBufSize = 2
+	defer func() { defaultBufSize = origBufSize }()
+
+	tmpDir := t.TempDir()
+	srcPath := filepath.Join(tmpDir, "src")
+	dstPath := filepath.Join(tmpDir, "dst")
+
+	canary := []byte("hello verification world")
+	if err := os.WriteFile(srcPath, canary, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dd := &ddOpts{
+		src:    srcPath,
+		dst:    dstPath,
+		verify: true,
+	}
+	if err := dd.Run(); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// check that the destination file exists
+	if _, err := os.Stat(dstPath); err != nil {
+		t.Fatalf("destination file missing: %v", err)
+	}
+}
