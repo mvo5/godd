@@ -79,6 +79,8 @@ func (g *GoddTestSuite) TestParseComp(c *C) {
 		{arg: "comp=bz2", comp: compBzip2},
 		{arg: "comp=bzip2", comp: compBzip2},
 		{arg: "comp=xz", comp: compXz},
+		{arg: "comp=zst", comp: compZstd},
+		{arg: "comp=zstd", comp: compZstd},
 		{arg: "comp=none", comp: compNone},
 		{arg: "comp=auto", comp: compAuto},
 	} {
@@ -97,6 +99,8 @@ func (g *GoddTestSuite) TestGuessComp(c *C) {
 		{arg: "foo.gz", comp: compGzip},
 		{arg: "foo.bz2", comp: compBzip2},
 		{arg: "foo.xz", comp: compXz},
+		{arg: "foo.zst", comp: compZstd},
+		{arg: "foo.zstd", comp: compZstd},
 		{arg: "foo.txt", comp: compNone},
 	} {
 		c.Check(guessComp(t.arg), Equals, t.comp)
