@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/cheggaaa/pb"
+	"github.com/klauspost/compress/zstd"
 	"github.com/ulikunitz/xz"
 
 	"github.com/mvo5/godd/udev"
@@ -57,6 +58,7 @@ const (
 	compGzip
 	compBzip2
 	compXz
+	compZstd
 	compAuto compType = 0
 )
 
@@ -70,6 +72,8 @@ func (c compType) String() string {
 		return "bzip2"
 	case compXz:
 		return "xz"
+	case compZstd:
+		return "zstd"
 	case compAuto:
 		return "auto"
 	default:
@@ -98,6 +102,8 @@ func ddComp(s string) (compType, error) {
 		return compBzip2, nil
 	case "xz":
 		return compXz, nil
+	case "zst", "zstd":
+		return compZstd, nil
 	default:
 		return compAuto, fmt.Errorf("unknown compression type %q", s)
 	}
@@ -111,6 +117,8 @@ func guessComp(src string) compType {
 		return compBzip2
 	case ".xz":
 		return compXz
+	case ".zst", ".zstd":
+		return compZstd
 	default:
 		return compNone
 	}
@@ -314,6 +322,12 @@ func (dd *ddOpts) open() (r io.ReadCloser, size int64, err error) {
 	case compXz:
 		cr, err := xz.NewReader(r)
 		return ioutil.NopCloser(cr), size, err
+	case compZstd:
+		cr, err := zstd.NewReader(r)
+		if err != nil {
+			return nil, 0, err
+		}
+		return cr.IOReadCloser(), size, nil
 	}
 
 	panic("can't happen")
