@@ -178,6 +178,31 @@ func (g *GoddTestSuite) TestSanityCheckDst(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func makeSysBlockDevice(c *C, name, removable, scsiType string) {
+	dir := filepath.Join(sysBlockPath, name)
+	err := os.MkdirAll(filepath.Join(dir, "device"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(dir, "removable"), []byte(removable+"\n"), 0644)
+	c.Assert(err, IsNil)
+	if scsiType != "" {
+		err = ioutil.WriteFile(filepath.Join(dir, "device", "type"), []byte(scsiType+"\n"), 0644)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (g *GoddTestSuite) TestFindNonCdromRemovableDeviceFiles(c *C) {
+	sysBlockPath = filepath.Join(c.MkDir(), "sys/block")
+
+	makeSysBlockDevice(c, "sda", "0", "0")
+	makeSysBlockDevice(c, "sdb", "1", "0")
+	makeSysBlockDevice(c, "sr0", "1", "5")
+	makeSysBlockDevice(c, "mmcblk0", "1", "")
+
+	c.Check(findNonCdromRemovableDeviceFiles(), DeepEquals, []string{
+		"/dev/mmcblk0", "/dev/sdb",
+	})
+}
+
 func (g *GoddTestSuite) TestOutputToStdout(c *C) {
 	mockStdout, err := os.Create(filepath.Join(c.MkDir(), "stdout"))
 	c.Assert(err, IsNil)

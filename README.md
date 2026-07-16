@@ -6,10 +6,11 @@ e.g. SD cards.
 
 It can autodetect (or be told) the compression format of the input file.
 
-It will also sanity check that you don't write to a mounted device
-(no more accidental dd of your main hdd anymore). It uses udev to
-detect possible targets and will write synchronously (no need to run
-"sync" manually after the image was written).
+It will also sanity check that you don't write to a device that is in
+use, i.e. mounted, active swap or claimed by dm/md (no more accidental
+dd of your main hdd anymore). It detects possible targets via sysfs
+and will write synchronously (no need to run "sync" manually after the
+image was written).
 
 ## Usage
 

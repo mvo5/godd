@@ -18,8 +18,6 @@ import (
 	"github.com/cheggaaa/pb"
 	"github.com/klauspost/compress/zstd"
 	"github.com/ulikunitz/xz"
-
-	"github.com/mvo5/godd/udev"
 )
 
 var (
@@ -171,12 +169,27 @@ func ddAtoi(s string) (int64, error) {
 	return n, err
 }
 
+// var to allow tests to change it
+var sysBlockPath = "/sys/block"
+
 func findNonCdromRemovableDeviceFiles() (res []string) {
-	c := udev.New(nil)
-	for _, d := range c.QueryBySubsystem("block") {
-		if d.GetSysfsAttr("removable") == "1" && d.GetProperty("ID_CDROM") != "1" {
-			res = append(res, d.GetDeviceFile())
+	entries, err := ioutil.ReadDir(sysBlockPath)
+	if err != nil {
+		return nil
+	}
+	for _, e := range entries {
+		name := e.Name()
+		removable, err := ioutil.ReadFile(filepath.Join(sysBlockPath, name, "removable"))
+		if err != nil || strings.TrimSpace(string(removable)) != "1" {
+			continue
 		}
+		// cdroms are scsi type 5 (ROM)
+		typ, err := ioutil.ReadFile(filepath.Join(sysBlockPath, name, "device", "type"))
+		if err == nil && strings.TrimSpace(string(typ)) == "5" {
+			continue
+		}
+		// sysfs encodes "/" in device names as "!"
+		res = append(res, "/dev/"+strings.ReplaceAll(name, "!", "/"))
 	}
 
 	return res
