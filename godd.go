@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/bzip2"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/cheggaaa/pb"
 	"github.com/klauspost/compress/zstd"
@@ -333,11 +335,30 @@ func (dd *ddOpts) open() (r io.ReadCloser, size int64, err error) {
 	panic("can't happen")
 }
 
+func isBlockDevice(path string) bool {
+	st, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return st.Mode()&os.ModeDevice != 0 && st.Mode()&os.ModeCharDevice == 0
+}
+
 func (dd *ddOpts) openOrCreate() (*os.File, error) {
 	if dd.dst == "-" {
 		return Stdout, nil
 	}
-	return os.OpenFile(dd.dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0666)
+	flags := os.O_RDWR | os.O_CREATE | os.O_TRUNC | os.O_SYNC
+	if isBlockDevice(dd.dst) {
+		// O_EXCL fails with EBUSY if the kernel considers the device
+		// in use (mounted, swap, dm/md) and blocks new mounts while
+		// the fd is open
+		flags = os.O_RDWR | os.O_EXCL | os.O_SYNC
+	}
+	f, err := os.OpenFile(dd.dst, flags, 0666)
+	if errors.Is(err, syscall.EBUSY) {
+		return nil, fmt.Errorf("%s is in use (mounted, swap or claimed by dm/md?)", dd.dst)
+	}
+	return f, err
 }
 
 func (dd *ddOpts) Run() error {
