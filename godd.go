@@ -270,11 +270,20 @@ func sanityCheckDst(dstPath string) error {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		l := strings.Fields(scanner.Text())
-		if len(l) == 0 {
+		// fields 0-5 are fixed, then zero or more optional fields
+		// terminated by "-", then fstype, source, super options
+		sep := -1
+		for i := 6; i < len(l); i++ {
+			if l[i] == "-" {
+				sep = i
+				break
+			}
+		}
+		if sep < 0 || sep+2 >= len(l) {
 			continue
 		}
 		mountPoint := l[4]
-		mountSrc := l[9]
+		mountSrc := l[sep+2]
 
 		// resolve any symlinks in mountSrc
 		resolvedMountSrc, err := filepath.EvalSymlinks(mountSrc)
@@ -282,12 +291,26 @@ func sanityCheckDst(dstPath string) error {
 			mountSrc = resolvedMountSrc
 		}
 
-		if strings.HasPrefix(mountSrc, dstPath) {
+		if isSameOrPartitionOf(dstPath, mountSrc) {
 			return fmt.Errorf("%s is mounted on %s", mountSrc, mountPoint)
 		}
 	}
 
 	return scanner.Err()
+}
+
+// matches the device itself or a partition of it (sda1, nvme0n1p1)
+// but not an unrelated device sharing the prefix (sda vs sdab)
+func isSameOrPartitionOf(devPath, other string) bool {
+	if other == devPath {
+		return true
+	}
+	rest := strings.TrimPrefix(other, devPath)
+	if rest == other {
+		return false
+	}
+	rest = strings.TrimPrefix(rest, "p")
+	return rest != "" && rest[0] >= '0' && rest[0] <= '9'
 }
 
 func (dd *ddOpts) open() (r io.ReadCloser, size int64, err error) {
@@ -369,6 +392,11 @@ func (dd *ddOpts) openOrCreate() (*os.File, error) {
 	}
 	f, err := os.OpenFile(dd.dst, flags, 0666)
 	if errors.Is(err, syscall.EBUSY) {
+		// O_EXCL is the actual protection, mountinfo is consulted
+		// only for a friendlier error message
+		if merr := sanityCheckDst(dd.dst); merr != nil {
+			return nil, merr
+		}
 		return nil, fmt.Errorf("%s is in use (mounted, swap or claimed by dm/md?)", dd.dst)
 	}
 	return f, err
@@ -384,10 +412,6 @@ func (dd *ddOpts) Run() error {
 		return err
 	}
 	defer src.Close()
-
-	if err := sanityCheckDst(dd.dst); err != nil {
-		return err
-	}
 
 	dst, err := dd.openOrCreate()
 	if err != nil {

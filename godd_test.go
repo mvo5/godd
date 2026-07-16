@@ -145,13 +145,17 @@ func (g *GoddTestSuite) TestParseDDTwo(c *C) {
 	c.Assert(n, Equals, int64(5*1000))
 }
 
-func makeMountInfo(c *C, mountSrc, mountPath string) {
+func makeMountInfoLine(c *C, optFields, mountSrc, mountPath string) {
 	// write a example mountinfo
 	cwd, err := os.Getwd()
 	c.Assert(err, IsNil)
 	mountinfoPath = filepath.Join(cwd, "mountinfo")
-	err = ioutil.WriteFile(mountinfoPath, []byte(fmt.Sprintf(`425 22 8:50 / %s rw,nosuid,nodev,relatime shared:442 - ext4 %s rw,data=ordered`, mountPath, mountSrc)), 0644)
+	err = ioutil.WriteFile(mountinfoPath, []byte(fmt.Sprintf(`425 22 8:50 / %s rw,nosuid,nodev,relatime %s - ext4 %s rw,data=ordered`, mountPath, optFields, mountSrc)), 0644)
 	c.Assert(err, IsNil)
+}
+
+func makeMountInfo(c *C, mountSrc, mountPath string) {
+	makeMountInfoLine(c, "shared:442", mountSrc, mountPath)
 }
 
 func (g *GoddTestSuite) TestSanityCheckDstOk(c *C) {
@@ -176,6 +180,27 @@ func (g *GoddTestSuite) TestSanityCheckDst(c *C) {
 	makeMountInfo(c, "/dev/sdd2", "/media/ubuntu/a")
 	err := sanityCheckDst("/dev/sdd1")
 	c.Assert(err, IsNil)
+}
+
+func (g *GoddTestSuite) TestSanityCheckDstOptionalFields(c *C) {
+	// the optional fields are variable length (zero or more)
+	for _, opt := range []string{"", "shared:442", "shared:442 master:1", "shared:442 master:1 propagate_from:2"} {
+		makeMountInfoLine(c, opt, "/dev/sdd2", "/media/ubuntu/a")
+		err := sanityCheckDst("/dev/sdd2")
+		c.Check(err, ErrorMatches, "/dev/sdd2 is mounted on /media/ubuntu/a", Commentf("optFields=%q", opt))
+	}
+}
+
+func (g *GoddTestSuite) TestSanityCheckDstNoPrefixFalsePositive(c *C) {
+	makeMountInfo(c, "/dev/sdab", "/media/ubuntu/a")
+	err := sanityCheckDst("/dev/sda")
+	c.Assert(err, IsNil)
+}
+
+func (g *GoddTestSuite) TestSanityCheckDstNvmeParentMounted(c *C) {
+	makeMountInfo(c, "/dev/nvme0n1p2", "/media/ubuntu/a")
+	err := sanityCheckDst("/dev/nvme0n1")
+	c.Assert(err, ErrorMatches, "/dev/nvme0n1p2 is mounted on /media/ubuntu/a")
 }
 
 func makeSysBlockDevice(c *C, name, removable, scsiType string) {
